@@ -116,6 +116,7 @@ app.get("/api/users/:id/logs", async (req, res) => {
     res.json({ user });
   } else {
     let user = await User.findById(req.params.id).exec();
+    console.log("hhhe");
     res.json(user);
   }
 });
