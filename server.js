@@ -20,21 +20,20 @@ db.on("open", () => {
   console.log("database running successfully");
 });
 
-// const Log = new mongoose.Schema({
-
-// })
+const Log = new mongoose.Schema(
+  {
+    description: String,
+    duration: Number,
+    date: { type: Date, default: "2021-09-17" },
+  },
+  { _id: false }
+);
 const User = mongoose.model(
   "User",
   new mongoose.Schema({
     username: String,
     count: { type: Number, default: 0 },
-    log: [
-      {
-        description: String,
-        duration: Number,
-        date: { type: Date, default: "2021-09-17" },
-      },
-    ],
+    log: [Log],
   })
 );
 
@@ -66,7 +65,7 @@ app.get("/api/users", async (req, res) => {
 });
 
 app.post("/api/users/:id/exercises", async (req, res) => {
-  const user = await User.findById(req.params.id).exec();
+  const user = await User.findById(req.params.id).select("-log._id").exec();
   console.log(req.body);
   if (!user) {
     res.end("not found");
