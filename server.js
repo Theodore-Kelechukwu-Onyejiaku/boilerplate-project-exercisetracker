@@ -91,7 +91,7 @@ app.post("/api/users/:id/exercises", async (req, res) => {
   log.description = req.body.description;
   log.duration = req.body.duration;
 
-  log.date = req.body.date;
+  log.date = new Date(req.body.date).toDateString();
 
   user.log.push(log);
 
