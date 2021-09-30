@@ -24,7 +24,7 @@ const Log = new mongoose.Schema(
   {
     description: String,
     duration: Number,
-    date: { type: Date, default: "2021-09-17" },
+    date: { type: Date, default: Date },
   },
   { _id: false }
 );
@@ -57,7 +57,21 @@ app.post("/api/users", async (req, res) => {
 
 app.get("/api/users", async (req, res) => {
   try {
-    let allUsers = await User.find({}).populate("username _id").exec();
+    let allUsers = await User.aggregate([
+      {
+        $project: {
+          username: 1,
+          count: 1,
+          log: 1,
+        },
+      },
+    ]);
+
+    allUsers.map((each) => {
+      each.log.map((eachLog) => {
+        eachLog.date = new Date(eachLog.date).toDateString();
+      });
+    });
     res.json(allUsers);
   } catch (error) {
     res.json({ error: error.message });
@@ -77,7 +91,7 @@ app.post("/api/users/:id/exercises", async (req, res) => {
   log.description = req.body.description;
   log.duration = req.body.duration;
 
-  log.date = new Date(req.body.date).toDateString();
+  log.date = req.body.date;
 
   user.log.push(log);
 
@@ -99,24 +113,59 @@ app.post("/api/users/:id/exercises", async (req, res) => {
 app.get("/api/users/:id/logs", async (req, res) => {
   console.log(req.query);
   if (req.query.from && req.query.to && req.query.limit) {
-    let fromDate = new Date(req.query.from).toISOString();
-    let toDate = new Date(req.query.to).toISOString();
-    let limit = req.query.limit;
+    let user = await User.aggregate([
+      { $match: { _id: mongoose.Types.ObjectId(req.params.id) } },
+      {
+        $project: {
+          log: {
+            $filter: {
+              input: "$log",
+              as: "log",
+              cond: {
+                $and: [
+                  { $gte: ["$$log.date", new Date(req.query.from)] },
+                  { $lte: ["$$log.date", new Date(req.query.to)] },
+                ],
+              },
+            },
+          },
+          username: 1,
+          count: 1,
+        },
+      },
+    ]);
+    const ourLimit = Number(req.query.limit);
 
-    let user = await User.findById(req.params.id).exec();
-    let logs = user.log.filter((each) => {
-      return (
-        each.date.toISOString() >= fromDate && each.date.toISOString() <= toDate
-      );
+    user.forEach((eachUser) => {
+      eachUser.log.map((eachUserLog) => {
+        eachUserLog.date = new Date(eachUserLog.date).toDateString();
+      });
     });
+    user[0].log.splice(-1, 1);
 
-    let limitedArray = logs.slice(0, limit);
-    user.log = limitedArray;
-    res.json({ user });
-  } else {
-    let user = await User.findById(req.params.id).exec();
-    console.log("hhhe");
     res.json(user);
+  } else {
+    try {
+      let user = await User.aggregate([
+        { $match: { _id: mongoose.Types.ObjectId(req.params.id) } },
+        {
+          $project: {
+            username: 1,
+            count: 1,
+            log: 1,
+          },
+        },
+      ]);
+      user.map((each) => {
+        each.log.map((eachLog) => {
+          eachLog.date = new Date(eachLog.date).toDateString();
+        });
+      });
+      console.log(user.length);
+      res.json(user);
+    } catch (error) {
+      res.json({ error: error.message });
+    }
   }
 });
 
