@@ -143,7 +143,7 @@ app.get("/api/users/:id/logs", async (req, res) => {
     });
     user[0].log.splice(-1, ourLimit);
 
-    res.json(user);
+    res.json(user[0]);
   } else {
     try {
       let user = await User.aggregate([
@@ -162,7 +162,7 @@ app.get("/api/users/:id/logs", async (req, res) => {
         });
       });
       console.log(user.length);
-      res.json(user);
+      res.json(user[0]);
     } catch (error) {
       res.json({ error: error.message });
     }
