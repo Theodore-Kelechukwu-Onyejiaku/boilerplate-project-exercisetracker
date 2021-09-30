@@ -141,7 +141,7 @@ app.get("/api/users/:id/logs", async (req, res) => {
         eachUserLog.date = new Date(eachUserLog.date).toDateString();
       });
     });
-    user[0].log.splice(-1, 1);
+    user[0].log.splice(-1, ourLimit);
 
     res.json(user);
   } else {
