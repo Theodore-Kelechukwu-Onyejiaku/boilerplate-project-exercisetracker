@@ -20,20 +20,21 @@ db.on("open", () => {
   console.log("database running successfully");
 });
 
-const Log = new mongoose.Schema(
-  {
+const Log = mongoose.model(
+  "Log",
+  new mongoose.Schema({
+    userid: String,
+    username: String,
     description: String,
     duration: Number,
-    date: { type: Date, default: Date },
-  },
-  { _id: false }
+    date: { type: Date, default: Date.now },
+  })
 );
+
 const User = mongoose.model(
   "User",
   new mongoose.Schema({
     username: String,
-    count: { type: Number, default: 0 },
-    log: [Log],
   })
 );
 
@@ -57,21 +58,7 @@ app.post("/api/users", async (req, res) => {
 
 app.get("/api/users", async (req, res) => {
   try {
-    let allUsers = await User.aggregate([
-      {
-        $project: {
-          username: 1,
-          count: 1,
-          log: 1,
-        },
-      },
-    ]);
-
-    allUsers.map((each) => {
-      each.log.map((eachLog) => {
-        eachLog.date = new Date(eachLog.date).toDateString();
-      });
-    });
+    let allUsers = await User.find({});
     res.json(allUsers);
   } catch (error) {
     res.json({ error: error.message });
@@ -79,31 +66,28 @@ app.get("/api/users", async (req, res) => {
 });
 
 app.post("/api/users/:id/exercises", async (req, res) => {
-  const user = await User.findById(req.params.id).select("-log._id").exec();
-  console.log(req.body);
-  if (!user) {
-    res.end("not found");
-  }
-
-  user.count = user.count + 1;
-
-  let log = {};
-  log.description = req.body.description;
-  log.duration = Number(req.body.duration);
-
-  log.date = new Date(req.body.date).toDateString();
-
-  user.log.push(log);
-
   try {
-    await user.save();
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      res.end("not found");
+    }
+
+    const log = new Log({
+      userid: req.params.id,
+      username: user.username,
+      description: req.body.description,
+      duration: Number(req.body.duration),
+      date: new Date(req.body.date).toDateString(),
+    });
+
+    await log.save();
 
     res.json({
-      username: user.username,
+      username: log.username,
       description: log.description,
       duration: log.duration,
-      date: log.date,
-      _id: user._id,
+      date: new Date(log.date).toDateString(),
+      _id: req.params.id,
     });
   } catch (error) {
     res.json({ error: error.message });
@@ -111,61 +95,48 @@ app.post("/api/users/:id/exercises", async (req, res) => {
 });
 
 app.get("/api/users/:id/logs", async (req, res) => {
-  console.log(req.query);
+  const user = await User.findById(req.params.id);
   if (req.query.from && req.query.to && req.query.limit) {
-    let user = await User.aggregate([
-      { $match: { _id: mongoose.Types.ObjectId(req.params.id) } },
-      {
-        $project: {
-          log: {
-            $filter: {
-              input: "$log",
-              as: "log",
-              cond: {
-                $and: [
-                  { $gte: ["$$log.date", new Date(req.query.from)] },
-                  { $lte: ["$$log.date", new Date(req.query.to)] },
-                ],
-              },
-            },
-          },
-          username: 1,
-          count: 1,
-        },
-      },
-    ]);
-    const ourLimit = Number(req.query.limit);
+    const log = await Log.find({
+      date: { $gte: new Date(req.query.from), $lte: new Date(req.query.to) },
+    }).select("-_id -userid -__v");
 
-    user.forEach((eachUser) => {
-      eachUser.log.map((eachUserLog) => {
-        eachUserLog.date = new Date(eachUserLog.date).toDateString();
-      });
+    console.log(log.length, Number(req.query.limit));
+    let limitedLog = log.slice(0, Number(req.query.limit));
+    console.log(limitedLog.length);
+    let whatever = limitedLog.map((each) => {
+      return {
+        description: "ekskdks",
+        duration: each.duration,
+        date: new Date(each.date).toDateString(),
+      };
     });
-    user[0].log.splice(-1, ourLimit);
 
-    res.json(user[0]);
+    res.json({
+      _id: req.params.id,
+      username: user.username,
+      count: whatever.length,
+      log: whatever,
+    });
   } else {
-    try {
-      let user = await User.aggregate([
-        { $match: { _id: mongoose.Types.ObjectId(req.params.id) } },
-        {
-          $project: {
-            username: 1,
-            count: 1,
-            log: 1,
-          },
-        },
-      ]);
-      user.map((each) => {
-        each.log.map((eachLog) => {
-          eachLog.date = new Date(eachLog.date).toDateString();
-        });
-      });
-      console.log(user.length);
-      res.json(user[0]);
-    } catch (error) {
-      res.json({ error: error.message });
-    }
+    const log = await Log.find({ userid: req.params.id }).select(
+      "-_id -userid"
+    );
+    const count = log.length;
+    let whatever = log.map((each) => {
+      return {
+        description: "ekskdks",
+        duration: each.duration,
+        date: new Date(each.date).toDateString(),
+      };
+    });
+
+    res.json({
+      _id: req.params.id,
+      username: user.username,
+      count: count,
+      log: whatever,
+    });
   }
 });
 
